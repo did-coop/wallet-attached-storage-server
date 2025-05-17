@@ -1,12 +1,12 @@
 import type { Fetchable } from "./types"
 import type { Database } from 'wallet-attached-storage-database/types'
 import { Hono } from 'hono'
-import SpaceRepository from "../../database/src/space-repository.ts"
 import { GET as getSpacesIndex } from './routes/spaces._index.ts'
 import { POST as postSpacesIndex } from './routes/spaces._index.ts'
 import { GET as getSpaceByUuid } from './routes/space.$uuid.ts'
 import { PUT as putSpaceByUuid } from './routes/space.$uuid.ts'
 import { ResourceRepository } from 'wallet-attached-storage-database'
+import { SpaceRepository } from 'wallet-attached-storage-database'
 import { collect } from "streaming-iterables"
 import { cors } from 'hono/cors'
 
