@@ -6,7 +6,7 @@ import { GET as getSpacesIndex } from './routes/spaces._index.ts'
 import { POST as postSpacesIndex } from './routes/spaces._index.ts'
 import { GET as getSpaceByUuid } from './routes/space.$uuid.ts'
 import { PUT as putSpaceByUuid } from './routes/space.$uuid.ts'
-import ResourceRepository from "../../database/src/resource-repository.ts"
+import { ResourceRepository } from 'wallet-attached-storage-database'
 import { collect } from "streaming-iterables"
 import { cors } from 'hono/cors'
 
@@ -84,7 +84,7 @@ export class ServerHono extends Hono {
 
     // PUT /space/:uuid/:resourceName{.*}
     // ^ errors from within hono when the resourceName pattern can be an empty string
-    hono.put('/space/:spaceWithName{.+}', async (c,next) => {
+    hono.put('/space/:spaceWithName{.+}', async (c, next) => {
       const spaceWithName = c.req.param('spaceWithName')
       const match = spaceWithName.match(patternOfSpaceSlashName)
       const space = match?.groups?.space

@@ -9,9 +9,13 @@ export { invoke } from "./invoke-cli.ts"
 
 if (fileURLToPath(import.meta.url) === process.argv[1]) {
   // this script is being invoked on a command line
+  await main()
+}
+
+export async function main() {
   await invoke(process.argv.slice(2), {
     stdin: process.stdin ? Readable.toWeb(process.stdin) : undefined,
     stdout: Writable.toWeb(process.stdout),
     stderr: Writable.toWeb(process.stderr),
-  })
+  })  
 }

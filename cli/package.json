@@ -1,7 +1,7 @@
 {
   "name": "wallet-attached-storage-server-cli",
   "type": "module",
-  "version": "0.0.17",
+  "version": "0.0.22",
   "main": "lib/index.js",
   "exports": {
     ".": {
@@ -16,18 +16,22 @@
     "start": "tsx ./index.ts"
   },
   "dependencies": {
+    "hono": "^4.6.17",
     "@did.coop/did-key-ed25519": "^0.0.9",
+    "@hono/node-server": "^1.14.1",
+    "better-sqlite3": "^11.10.0",
     "dedent": "^1.5.3",
-    "tsx": "^4.19.2"
+    "kysely": "^0.28.2",
+    "tsx": "^4.19.2",
+    "wallet-attached-storage-database": "*",
+    "wallet-attached-storage-server": "*"
   },
   "bin": {
-    "wallet-attached-storage-server": "./bin/wallet-attached-storage"
+    "wallet-attached-storage-server": "./bin/wallet-attached-storage.js"
   },
   "devDependencies": {
-    "@hono/node-server": "^1.13.7",
     "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^22.12.0",
-    "hono": "^4.6.17",
     "typescript": "^5.7.3"
   },
   "publishConfig": {
