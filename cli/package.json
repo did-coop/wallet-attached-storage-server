@@ -1,5 +1,5 @@
 {
-  "name": "@data.pub/cli",
+  "name": "wallet-attached-storage-server-cli",
   "type": "module",
   "version": "0.0.14",
   "main": "lib/index.js",
@@ -21,7 +21,7 @@
     "tsx": "^4.19.2"
   },
   "bin": {
-    "datapub": "./index.ts"
+    "wallet-attached-storage-server": "./index.ts"
   },
   "devDependencies": {
     "@hono/node-server": "^1.13.7",
