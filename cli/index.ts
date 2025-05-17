@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+#!/usr/bin/env tsx
 
 import { fileURLToPath } from "node:url";
 import { Writable, Readable } from 'node:stream'
