@@ -45,7 +45,7 @@ const server = serve({
  * given environment variables, create a suitable Database.
  * Use env.DATABASE_URL if provided, otherwise create an in-memory database.
  */
-function createDatabaseFromEnv(env: {
+export function createDatabaseFromEnv(env: {
   DATABASE_URL?: unknown
 }) {
   if (env.DATABASE_URL) {

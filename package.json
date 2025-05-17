@@ -2,6 +2,7 @@
   "type": "module",
   "name": "wallet-attached-storage-server-monorepo",
   "workspaces": [
+    "cli",
     "database",
     "nodejs",
     "server",
@@ -30,6 +31,8 @@
   "engines": {
     "node": "23.x"
   },
-  "dependencies": {
+  "dependencies": {},
+  "bin": {
+    "wallet-attached-storage-server": "./cli/src/cli.js"
   }
 }
