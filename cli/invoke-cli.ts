@@ -4,8 +4,8 @@ import { createReadStream, existsSync, readFileSync } from "node:fs";
 import { Readable } from "node:stream";
 import { readFile } from "node:fs/promises";
 import sshpk from "sshpk"
-import type { ISigner } from "./types.js";
-import { bytesToDataUri } from "./bytes.js";
+import type { ISigner } from "./types.ts";
+import { bytesToDataUri } from "./bytes.ts";
 import { encodeMutlibaseBase58btc } from "@did.coop/did-key-ed25519/multibase";
 import * as nodePath from "node:path"
 import { createHttpSignatureAuthorization } from "authorization-signature"
@@ -16,7 +16,7 @@ import dedent from "dedent"
 import WAS from 'wallet-attached-storage-server'
 import { initializeDatabaseSchema } from 'wallet-attached-storage-database'
 import { serve } from '@hono/node-server'
-import { Database } from 'wallet-attached-storage-database/types'
+import type { Database } from 'wallet-attached-storage-database/types'
 import { createDatabaseFromSqlite3Url, parseSqliteDatabaseUrl } from 'wallet-attached-storage-database/sqlite3'
 import * as path from "path"
 import {Kysely, SqliteDialect} from "kysely"
