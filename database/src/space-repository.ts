@@ -1,4 +1,4 @@
-import { NoResultError, type Insertable, type QueryCreator, type Updateable } from "kysely"
+import { NoResultError, PostgresIntrospector, sql, type Insertable, type QueryCreator, type Updateable } from "kysely"
 import type { Database, DatabaseTables, IRepository, ISpace } from "./types"
 
 export class SpaceNotFound extends Error { }
@@ -13,8 +13,20 @@ export default class SpaceRepository implements IRepository<ISpace> {
    * @throws {SpaceNotFound} if the space cannot be not found
    */
   async getById(id: string) {
-    try {
-      const result = await this.#database.selectFrom('space')
+    async function queryPostgresql(db: Database) {
+      return await db.selectFrom('space')
+        .leftJoin('link', 'link.anchor', sql`space.uuid::text` as any)
+        .select([
+          'space.uuid',
+          'space.name',
+          'space.controller',
+          'link.href as link',
+        ])
+        .where(sql`space.uuid::text`, '=', id)
+        .executeTakeFirstOrThrow()
+    }
+    async function querySqlite(db: Database) {
+      return await db.selectFrom('space')
         .leftJoin('link', 'link.anchor', 'space.uuid')
         .select([
           'space.uuid',
@@ -22,9 +34,19 @@ export default class SpaceRepository implements IRepository<ISpace> {
           'space.controller',
           'link.href as link',
         ])
-        .where('space.uuid', '=', id)
-        .executeTakeFirstOrThrow()
-      return result
+        .where(`space.uuid`, '=', id)
+        .executeTakeFirstOrThrow()      
+    }
+    try {
+      const isPostgresql = this.#database.introspection instanceof PostgresIntrospector
+      console.debug('need to query differently depending on pg vs sqlite', {
+        isPostgresql,
+      })
+      if (isPostgresql) {
+        return await queryPostgresql(this.#database)
+      } else {
+        return await querySqlite(this.#database)
+      }
     } catch (error) {
       if (error instanceof NoResultError) {
         throw new SpaceNotFound(`Space with id ${id} not found`, {

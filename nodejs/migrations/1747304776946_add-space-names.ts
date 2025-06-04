@@ -1,4 +1,4 @@
-import { sql, type Kysely } from 'kysely'
+import { PostgresIntrospector, sql, type Kysely } from 'kysely'
 
 // `any` is required here since migrations should be frozen in time. alternatively, keep a "snapshot" db interface.
 export async function up(db: Kysely<any>): Promise<void> {
@@ -10,12 +10,20 @@ export async function up(db: Kysely<any>): Promise<void> {
 		.ifNotExists()
 		.addColumn('uuid', 'uuid', (col) => col.primaryKey())
 		.execute()
+
+	const isPostgresql = db.introspection instanceof PostgresIntrospector
+	console.debug('about to create table for blobs. first need to detect undelrying engine to detect blob type', {
+		isPostgresql,
+	})
+	const blobDataType = isPostgresql ? 'bytea' as const : 'blob' as const
+	console.debug('This migration adds a blob column, and there is no common sql datatype for that that works across sqlite and postgresql. We detected', { isPostgresql, blobDataType })
+
 	await db.schema
 		.createTable('blob')
 		.ifNotExists()
 		.addColumn('uuid', 'text', (col) => col.primaryKey())
 		.addColumn('type', 'text')
-		.addColumn('bytes', 'blob', col => col.notNull())
+		.addColumn('bytes', blobDataType, col => col.notNull())
 		.execute()
 	await db.schema
 		.createTable('resourceRepresentation')
@@ -43,7 +51,17 @@ export async function down(db: Kysely<any>): Promise<void> {
 	// down migration code goes here...
 	// note: down migrations are optional. you can safely delete this function.
 	// For more info, see: https://kysely.dev/docs/migrations
-	await db.schema
-		.dropTable('space')
-		.execute()
+
+
+	for (const tableName of [
+		'spaceNamedResource',
+		'resourceRepresentation',
+		'resource',
+		'blob',
+	]) {
+		console.debug('about to drop', tableName)
+		await db.schema
+			.dropTable(tableName)
+			.execute()
+	}
 }

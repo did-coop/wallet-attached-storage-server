@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "dotenvx run -f .env.dev -- node --watch ./scripts/start.ts",
     "start": "node ./scripts/start.ts",
-    "test": "node --test"
+    "test": "node --test",
+    "kysely": "npx -p kysely-ctl kysely"
   },
   "author": "",
   "license": "MIT",
@@ -14,8 +15,10 @@
   "dependencies": {
     "@hono/node-server": "^1.14.1",
     "better-sqlite3": "^11.10.0",
+    "connection-string": "^4.4.0",
     "kysely-ctl": "^0.12.2",
     "pg": "^8.16.0",
+    "pg-cursor": "^2.15.0",
     "wallet-attached-storage-database": "*",
     "wallet-attached-storage-server": "*"
   },

@@ -1,5 +1,4 @@
 import { Kysely, PostgresDialect, SqliteDialect } from 'kysely'
-import { fileURLToPath } from 'node:url'
 import { Pool } from 'pg'
 import BetterSqlite3Database from 'better-sqlite3'
 import * as Cursor from 'pg-cursor'

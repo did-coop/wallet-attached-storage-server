@@ -7,6 +7,7 @@ import WAS from 'wallet-attached-storage-server'
 import { initializeDatabaseSchema } from '../../database/src/schema.ts'
 import { parseSqliteDatabaseUrl } from '../../database/src/sqlite3/database-url-sqlite3.ts'
 import * as path from 'node:path'
+import { createKyselyFromDatabaseUrl } from '../src/database-url.ts'
 
 // store data in-memory
 const data = createDatabaseFromEnv({
@@ -51,10 +52,8 @@ function createDatabaseFromEnv(env: {
 }) {
   if (env.DATABASE_URL) {
     console.debug('creating database from DATABASE_URL')
-    const database = createDatabaseFromSqlite3Url(env.DATABASE_URL?.toString())
-    const parsedUrl = parseSqliteDatabaseUrl(env.DATABASE_URL?.toString())
-    const relativeDatabasePath = path.relative(process.cwd(), parsedUrl.pathname)
-    console.debug('database pathname is', relativeDatabasePath)
+    const database = createKyselyFromDatabaseUrl(env.DATABASE_URL?.toString())
+    console.debug('database from DATABASE_URL', database)
     if (database) {
       return database
     }
