@@ -45,6 +45,10 @@ function getKyselyConfigForDatabaseUrl(databaseUrl: string) {
 			}
 			return kyselyConfigPsql
 		}
+		case 'sqlite:':
+		case 'sqlite3:': {
+			return createKyselySqliteConfig(new URL(databaseUrl))
+		}
 		default:
 			throw new Error(`Unsupported databaseUrl scheme: ${scheme}`)
 	}
@@ -54,6 +58,7 @@ function getKyselyConfigForDatabaseUrl(databaseUrl: string) {
  * return kysely configuration for sqlite using better-sqlite3
  */
 function createKyselySqliteConfig(dbFileUrl: URL) {
+	console.debug(`Creating Kysely config for sqlite3 database at ${dbFileUrl.toString()}`)
 	const sqliteKyselyConfig: Pick<KyselyCTLConfig<'better-sqlite3'>, 'dialect'|'dialectConfig'> = {
 		dialect: 'better-sqlite3',
 		dialectConfig: {

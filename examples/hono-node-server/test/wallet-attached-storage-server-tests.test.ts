@@ -54,7 +54,7 @@ await describe('@hono/node-server serving WAS.Server', async () => {
       const schemaInitialized = DB.initializeDatabaseSchema(database)
       const wasServer = new WAS.Server(database)
       const nodeServer = serve({
-        port: 8005,
+        port: 0,
         fetch: wasServer.fetch,
       })
       return {

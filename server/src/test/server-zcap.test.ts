@@ -78,7 +78,6 @@ await describe('wallet-attached-storage-server ZCAP authorization', async t => {
         })
       })
       const responseToGetSpace = await server.fetch(requestToGetSpace)
-      console.debug('responseToGetSpace', requestToGetSpace.url, responseToGetSpace)
       assert.equal(
         responseToGetSpace.status, 200,
         'response status to GET /space/:uuid MUST be 200')

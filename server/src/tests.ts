@@ -1,4 +1,4 @@
-import type { IAssert, IServer, ITestModule, ITestOptions } from './types'
+import type { IAssert, IServer, ITestModule, ITestOptions } from './types.ts'
 import simpleTest from "./tests/simple.ts"
 import testSpaceCreate from "./tests/space-create.ts"
 

@@ -4,6 +4,9 @@ import { HttpSignatureAuthorization } from "authorization-signature"
 import { getVerifierForKeyId } from "@did.coop/did-key-ed25519/verifier"
 import { HTTPException } from 'hono/http-exception'
 import { getControllerOfDidKeyVerificationMethod } from "@did.coop/did-key-ed25519/did-key"
+import { PutSpaceRequestBodyShape } from "../shapes/PutSpaceRequestBody.ts"
+import type { PutSpaceRequestBody } from "../shapes/PutSpaceRequestBody.ts"
+import { treeifyError, z } from "zod/v4";
 
 /**
  * build a route to get a space by uuid from a space repository
@@ -34,7 +37,7 @@ export function GET(
  * @returns - hono handler
  */
 export function PUT(
-  spaces: Pick<SpaceRepository, 'getById'|'create'|'put'>,
+  spaces: Pick<SpaceRepository, 'getById' | 'create' | 'put'>,
 ) {
   // hono request handler
   // use like
@@ -42,15 +45,21 @@ export function PUT(
   return async (c: Context<any, '/:uuid'>) => {
     const uuid = c.req.param('uuid')
     const requestBodyObject = await c.req.json()
+    const parsedPutSpaceRequest = PutSpaceRequestBodyShape.safeParse(requestBodyObject)
+    if (parsedPutSpaceRequest.error) {
+      throw new HTTPException(400, {
+        message: `Invalid request body for PUT /spaces/${uuid}`,
+        cause: parsedPutSpaceRequest.error,
+      })
+    }
     const spaceToCreate = {
-      ...requestBodyObject,
+      ...parsedPutSpaceRequest.data,
       uuid,
     }
     await spaces.put(spaceToCreate)
     return c.newResponse(null, 204)
   }
 }
-
 
 /**
  * build a route to delete a space by uuid from a space repository
@@ -71,7 +80,7 @@ export function DELETE(
 }
 
 class AuthorizationMissing extends Error { }
-class NotAuthorized extends Error {}
+class NotAuthorized extends Error { }
 
 async function assertRequestAuthorizedBy(
   request: Request,
@@ -80,7 +89,7 @@ async function assertRequestAuthorizedBy(
   if (!request.headers.get('authorization')) {
     throw new AuthorizationMissing(`Authorization is required but missing.`)
   }
-  
+
   let authenticatedRequestKeyId: string
   try {
     const verified = await HttpSignatureAuthorization.verified(request, {

@@ -11,6 +11,9 @@ import { cors } from 'hono/cors'
 import { authorizeWithSpace } from './lib/authz-middleware.ts'
 import { SpaceResourceHono } from "./routes/space.$uuid.$name.ts"
 import { HTTPException } from "hono/http-exception"
+import { treeifyError, ZodError } from "zod/v4"
+import { env } from 'hono/adapter'
+
 
 interface IServerOptions {
   cors?: {
@@ -29,6 +32,26 @@ export class ServerHono extends Hono {
   }
   static configureRoutes(hono: Hono, data: Database, options?: IServerOptions) {
     const spaces = new SpaceRepository(data)
+    // add error handlerno to format ZodErrors
+    hono.onError(async (error, c) => {
+
+      if (error instanceof HTTPException && (error.cause as any)?.name === 'ZodError') {
+        return c.json({
+          type: `ParseError`,
+          cause: treeifyError(error.cause as ZodError),
+        },error.status)
+      }
+
+      if (error instanceof HTTPException) {
+        return error.getResponse();
+      }
+
+      console.warn(`ERROR: Unexpected WAS Server Error`, error)
+
+      const message = `Sorry, there was an unexpected error while handling your request.`
+      const cause = env(c).PROD ? undefined : error
+      return c.json({type:'UnexpectedError',message,cause},500)
+    })
 
     hono.use('*', cors({
       origin(origin, c) {
@@ -105,7 +128,6 @@ export class Server implements Fetchable {
       const response = await this.#hono.fetch(request, {})
       return response
     } catch (error) {
-      console.error('error', error)
       throw error
     }
   }

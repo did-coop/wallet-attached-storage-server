@@ -97,7 +97,7 @@ export const DELETE = <P extends string>(options: ISpaceResourceHonoOptions<P>) 
       const name = c.req.param('name') ?? ''
       const resources = new ResourceRepository(options.data)
       const resultOfDelete = await resources.deleteById(`urn:uuid:${space}/${name}`)
-      console.debug(`resultOfDelete`, resultOfDelete)
+      // @todo this should probably be 204
       return c.newResponse(null, 201)
     }
   )

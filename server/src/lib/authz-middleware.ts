@@ -51,6 +51,7 @@ export function authorizeWithSpace(options: {
       return true
     } catch (error) {
       // console.warn('error asserting request is signed by space controller', error)
+      return false
     }
     return false
   }

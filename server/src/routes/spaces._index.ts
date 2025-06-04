@@ -1,6 +1,5 @@
 import type { Context, Next } from 'hono'
 import SpaceRepository from '../../../database/src/space-repository.ts'
-import { CreateSpaceRequest } from '../api.zod.ts'
 import { z } from 'zod'
 import { HttpSignatureAuthorization } from 'authorization-signature'
 import { getVerifierForKeyId } from "@did.coop/did-key-ed25519/verifier"
@@ -8,6 +7,7 @@ import { getControllerOfDidKeyVerificationMethod } from "@did.coop/did-key-ed255
 import { createUuidV5 } from "../lib/uuid.ts"
 import canonicalize from "canonicalize"
 import { HTTPException } from 'hono/http-exception'
+import { PostSpaceRequestBodyShape } from '../shapes/PostSpaceRequestBody.ts'
 
 /**
  * build a route to get all spaces from a space repository
@@ -34,7 +34,6 @@ export const POST = (repo: SpaceRepository) => async (c: Context, next: Next) =>
   // check authorization
   let authenticatedClientDid: string | undefined
   if (c.req.raw.headers.get('authorization')) {
-    console.debug('POST authorization', c.req.raw.headers.get('authorization'))
     try {
       const verified = await HttpSignatureAuthorization.verified(c.req.raw, {
         async getVerifier(keyId) {
@@ -45,7 +44,6 @@ export const POST = (repo: SpaceRepository) => async (c: Context, next: Next) =>
       const httpSignatureKeyIdDid = getControllerOfDidKeyVerificationMethod(verified.keyId)
       authenticatedClientDid = httpSignatureKeyIdDid
     } catch (error) {
-      console.warn('error verifying authorization to POST /spaces/', error)
       throw new HTTPException(401, { message: `Failed to verify authorization`, cause: error })
     }
   }
@@ -59,24 +57,31 @@ export const POST = (repo: SpaceRepository) => async (c: Context, next: Next) =>
       controller: authenticatedClientDid,
     }
   } else {
-    initialSpace = JSON.parse(bodyText)
+    try {
+      initialSpace = JSON.parse(bodyText)
+    } catch (error) {
+      if (error instanceof SyntaxError) {
+        throw new HTTPException(400, { message: `Invalid JSON in request body`, cause: error })
+      }
+      throw error
+    }
   }
 
-  let createSpaceRequest: z.TypeOf<typeof CreateSpaceRequest>
-  try {
-    createSpaceRequest = CreateSpaceRequest.parse(initialSpace)
-  } catch (error) {
-    console.warn('error parsing request body', error)
-    return c.json(error, 400)
+  const parsedCreateSpaceRequest = PostSpaceRequestBodyShape.safeParse(initialSpace)
+  if (parsedCreateSpaceRequest.error ) {
+    throw new HTTPException(400, {
+      cause: parsedCreateSpaceRequest.error,
+      message: `Failed to parse request body`,
+    })
   }
 
-  const initialSpaceUuid = createSpaceRequest.uuid ?? createUuidV5({
+  const initialSpaceUuid = parsedCreateSpaceRequest.data.uuid ?? createUuidV5({
     namespace: Uint8Array.from([]),
     name: new TextEncoder().encode(canonicalize(initialSpace)),
   })
 
   const created = await repo.create({
-    ...createSpaceRequest,
+    ...parsedCreateSpaceRequest.data,
     uuid: initialSpaceUuid,
   })
   const pathnameOfSpace = `/space/${initialSpaceUuid}`

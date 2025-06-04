@@ -159,7 +159,7 @@ await describe('wallet-attached-storage-server with acl type PublicCanRead', asy
         }
       }))
       if (!response.ok) {
-        console.debug('response', response)
+        console.warn('unexpected not ok response', response)
       }
       assert.ok(response.ok, `response to ${requestMethod} /space/:uuid/ sans auth MUST be ok`)
     })

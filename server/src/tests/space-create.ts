@@ -1,7 +1,8 @@
 import type { ITestModule, ITestOptions } from "../types";
 import { Ed25519Signer } from "@did.coop/did-key-ed25519"
 import { createHttpSignatureAuthorization } from "authorization-signature"
-import { GetSpaceResponse } from '../api.zod.ts'
+import { inspect } from "util";
+import { ParseErrorShape } from "../shapes/ParseError.ts"
 
 /*
 Note! this is not a conventional nodejs test runner file.
@@ -31,9 +32,11 @@ const testSpaceCreate: ITestModule = async function (t, options: ITestOptions) {
     const { createServer } = options
     const server = createServer()
     try {
+      const keyForAlice = await Ed25519Signer.generate()
       const spaceToCreate = {
         name: `my space ${crypto.randomUUID()}`,
         uuid: crypto.randomUUID(),
+        controller: keyForAlice.controller,
       }
       const response = await server.fetch(createRequest('/spaces/', {
         method: 'POST',
@@ -157,7 +160,8 @@ const testSpaceCreate: ITestModule = async function (t, options: ITestOptions) {
       */
       {
         // fetch the space with a GET request
-        const requestToGetSpace = createRequest(locationHeader)
+        const urlOfAdded = new URL(locationHeader, new URL(response.url || request.url))
+        const requestToGetSpace = createRequest(urlOfAdded)
         const responseToGetSpace = await server.fetch(requestToGetSpace)
 
         // the response status is 401
@@ -185,7 +189,7 @@ const testSpaceCreate: ITestModule = async function (t, options: ITestOptions) {
             })
           }
         })
-        
+
         const responseToGetSpace = await server.fetch(requestToGetSpace)
         options.assert.equal(responseToGetSpace.status, 200, `response status to GET /spaces/ MUST be 200`)
 
@@ -194,6 +198,51 @@ const testSpaceCreate: ITestModule = async function (t, options: ITestOptions) {
       }
     } finally {
       server.close()
+    }
+  })
+
+  /**
+   * If the client adds a space with no controller,
+   * it can lead to a state where the space is added, but without enough information to
+   * authorize subsequence requests.
+   * This may be desirable for advanced users, but it can also be surprising and lead to confusion,
+   * esp when first using the protocol.
+   * This test simulates a client invoking add space without a controller,
+   * and expects the server to return a 400 Bad Request response.
+   * @see <https://github.com/gobengo/wallet.storage/issues/5>
+   */
+  t.test(`adding a space with no controller may respond with status 400`, async t => {
+    const spaceUuid = crypto.randomUUID()
+    const { createRequest } = options
+    const path = `/spaces/`
+    const method = `POST`
+    const spaceToCreate = {
+      id: `urn:uuid:${spaceUuid}`
+    }
+    const request = createRequest(path, {
+      method,
+      body: JSON.stringify(spaceToCreate),
+      headers: {
+        'Content-Type': 'application/json',
+      }
+    })
+    const { createServer } = options
+    const server = createServer()
+    try {
+      const response = await server.fetch(request)
+      options.assert.equal(response.status, 400, `if not ok, response status to ${method} ${path} MUST be 400`)
+      const responseBody = await response.json()
+      const parsedResponseBody = ParseErrorShape.safeParse(responseBody)
+      try {
+        options.assert.ok(parsedResponseBody.success, `response body MUST be a ParseError shape`)
+      } catch (error) {
+        if (error instanceof Error && error.name === 'AssertionError') console.warn('Bad response body', inspect(responseBody, { depth: Infinity }));
+        throw error
+      }
+    } catch (error) {
+      throw error
+    } finally {
+      await server.close()
     }
   })
 }
