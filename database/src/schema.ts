@@ -1,4 +1,4 @@
-import { Kysely, sql } from "kysely";
+import { Kysely, PostgresIntrospector, sql } from "kysely";
 
 export async function initializeDatabaseSchema<Database>(db: Kysely<Database>) {
   await db.schema
@@ -13,12 +13,16 @@ export async function initializeDatabaseSchema<Database>(db: Kysely<Database>) {
     .ifNotExists()
     .addColumn('uuid', 'uuid', (col) => col.primaryKey())
     .execute()
+
+  const isPostgresql = db.introspection instanceof PostgresIntrospector
+	const blobDataType = isPostgresql ? 'bytea' as const : 'blob' as const
+
   await db.schema
     .createTable('blob')
     .ifNotExists()
     .addColumn('uuid', 'text', (col) => col.primaryKey())
     .addColumn('type', 'text')
-    .addColumn('bytes', 'blob', col => col.notNull())
+    .addColumn('bytes', blobDataType, col => col.notNull())
     .execute()
   await db.schema
     .createTable('resourceRepresentation')
