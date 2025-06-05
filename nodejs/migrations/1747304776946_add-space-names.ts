@@ -12,11 +12,10 @@ export async function up(db: Kysely<any>): Promise<void> {
 		.execute()
 
 	const isPostgresql = db.introspection instanceof PostgresIntrospector
-	console.debug('about to create table for blobs. first need to detect undelrying engine to detect blob type', {
-		isPostgresql,
-	})
 	const blobDataType = isPostgresql ? 'bytea' as const : 'blob' as const
-	console.debug('This migration adds a blob column, and there is no common sql datatype for that that works across sqlite and postgresql. We detected', { isPostgresql, blobDataType })
+	console.debug(
+		'This migration adds a blob column, and there is no common sql datatype for that that works across sqlite and postgresql. We detected',
+		{ isPostgresql, blobDataType })
 
 	await db.schema
 		.createTable('blob')

@@ -39,9 +39,6 @@ export default class SpaceRepository implements IRepository<ISpace> {
     }
     try {
       const isPostgresql = this.#database.introspection instanceof PostgresIntrospector
-      console.debug('need to query differently depending on pg vs sqlite', {
-        isPostgresql,
-      })
       if (isPostgresql) {
         return await queryPostgresql(this.#database)
       } else {
