@@ -5,7 +5,8 @@
     "database",
     "nodejs",
     "server",
-    "examples/hono-node-server"
+    "examples/hono-node-server",
+    "examples/plan98-client"
   ],
   "version": "0.0.0",
   "main": "index.js",
