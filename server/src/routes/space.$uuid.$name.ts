@@ -6,6 +6,7 @@ import { collect } from "streaming-iterables";
 import { authorizeWithSpace } from "../lib/authz-middleware.ts";
 import SpaceRepository, { SpaceNotFound } from "wallet-attached-storage-database/space-repository";
 import { createFactory } from 'hono/factory'
+import { negotiate } from "../lib/http.ts";
 
 interface ISpaceResourceHonoOptions<P extends string> {
   space: (c: Context<Env, P>) => string | undefined,
@@ -53,22 +54,47 @@ export const GET = <P extends string>(options: ISpaceResourceHonoOptions<P>) => 
         return next()
       }
       const name = c.req.param('name') ?? ''
-      const representations = await collect(resources.iterateSpaceNamedRepresentations({
-        space,
-        name,
-      }))
-      if (representations.length === 0) {
-        return c.notFound()
-      }
-      if (representations.length > 1) {
-        console.warn(`found multiple representations for GET /space/${space}/${name}`, representations)
-      }
-      const [representation] = representations
-      return c.newResponse(await representation.blob.bytes(), {
-        headers: {
-          "Content-Type": representation.blob.type,
+      console.debug('GET resource name', name)
+
+      function resourceTypeFromName(name: string) {
+        if (name.endsWith('/')) {
+          return 'collection' as const
         }
-      })
+        return 'item' as const
+      }
+
+      switch (resourceTypeFromName(name)) {
+        case 'collection': {
+          // return a representation of the collection
+          // of items nested under this collection.
+          console.debug('resource type is collection. TODO get items')
+          return c.json({
+            type: [`Collection`],
+            items: [],
+            totalItems: 0,
+          })
+        }
+        case 'item': {
+          const representations = await collect(resources.iterateSpaceNamedRepresentations({
+            space,
+            name,
+          }))
+          if (representations.length === 0) {
+            return c.notFound()
+          }
+          if (representations.length > 1) {
+            console.warn(`found multiple representations for GET /space/${space}/${name}`, representations)
+          }
+          const [representation] = representations
+          return c.newResponse(await representation.blob.bytes(), {
+            headers: {
+              "Content-Type": representation.blob.type,
+            }
+          })
+        }
+        default:
+          throw new Error(`unable to determine resource type from name`, { cause: { name } });
+      }
     }
   )
   return handleGet
