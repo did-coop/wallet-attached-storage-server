@@ -1,4 +1,4 @@
-import type { Insertable, QueryCreator } from "kysely"
+import { sql, type Insertable, type QueryCreator } from "kysely"
 import type { DatabaseTables, IRepository, IResource } from "./types"
 import { map } from "streaming-iterables"
 
@@ -30,6 +30,7 @@ export default class ResourceRepository implements IRepository<IResource> {
     }
     return namedResource
   }
+
   async * iterateSpaceNamedRepresentations(query: {
     space: string,
     name?: string,
@@ -45,7 +46,7 @@ export default class ResourceRepository implements IRepository<IResource> {
         'spaceNamedResource.spaceId as space',
       ])
       .where('spaceNamedResource.spaceId', '=', query.space)
-      .$if(typeof query.name === 'string', qb => qb.where('spaceNamedResource.name', '=', query.name))
+      .$if(typeof query.name === 'string', qb => qb.where('spaceNamedResource.name', '=', query.name as string))
       .orderBy('resourceRepresentation.createdAt', 'desc')
       .execute()
     yield* map(
@@ -55,6 +56,49 @@ export default class ResourceRepository implements IRepository<IResource> {
       }),
       resultOfSelectRepresentations)
   }
+
+  /**
+   * iterate items that are descendants of a collection in the space.
+   * @param query
+   * @param query.space - uuid of space
+   * @param query.collection - name of collection in that space. must end in '/'.
+   */
+  async * iterateSpaceCollectionItems(query: {
+    /** space uuid */
+    space: string,
+    /** collection name within space. */
+    collection?: string,
+  }) {
+    const collection = query.collection ?? ''
+    if (collection && !collection.endsWith('/')) {
+      throw new Error(`collection name MUST end with /`, { cause: { collection } })
+    }
+    const resultOfSelectResources = await this.#database.selectFrom('spaceNamedResource')
+      .innerJoin('resourceRepresentation', 'spaceNamedResource.resourceId', 'resourceRepresentation.resourceId')
+      .innerJoin('blob', 'resourceRepresentation.representationId', 'blob.uuid')
+      .select([
+        'spaceNamedResource.name',
+        'spaceNamedResource.spaceId as space',
+        // Get all distinct media types as comma-separated string
+        sql<string>`group_concat(distinct blob.type)`.as('mediaTypesStr')
+      ])
+      .where('spaceNamedResource.spaceId', '=', query.space)
+      .where('spaceNamedResource.name', 'like', `${collection}%`)
+      // exclude collection itself
+      .where('spaceNamedResource.name', '!=', collection)
+      .groupBy(['spaceNamedResource.name'])
+      .stream()
+    yield* map(
+      x => ({
+        name: x.name,
+        representation: x.mediaTypesStr.split(',').map(mediaType => ({
+          mediaType,
+        }))
+      }),
+      resultOfSelectResources
+    );
+  }
+
   async create(input: Insertable<IResource> & { representation?: Blob }) {
     try {
       await this.#database.insertInto('resource')
@@ -139,7 +183,7 @@ export default class ResourceRepository implements IRepository<IResource> {
 }
 
 function parseUrnUuidUriToSpaceName(uri: `urn:uuid:${string}${string}`) {
-  const pattern =  /urn:uuid:(?<uuid>[^/]+)(?<path>\/(?<name>.*))/
+  const pattern = /urn:uuid:(?<uuid>[^/]+)(?<path>\/(?<name>.*))/
   const match = uri.match(pattern)
   if (match && match.groups) {
     const { uuid, path, name } = match.groups

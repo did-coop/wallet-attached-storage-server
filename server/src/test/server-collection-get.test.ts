@@ -3,15 +3,8 @@ import { Server } from '../server.ts'
 import { createDatabaseFromSqlite3Url } from 'wallet-attached-storage-database/sqlite3'
 import * as wasdb from 'wallet-attached-storage-database'
 import assert from 'assert'
-import { Ed25519Signer } from '@did.coop/did-key-ed25519'
-import { createHttpSignatureAuthorization } from 'authorization-signature'
-import MIMEType from "whatwg-mimetype"
-import { createRequestForCapabilityInvocation } from 'dzcap/zcap-invocation-request'
-import { delegate } from 'dzcap/delegation'
-import type { ISpace } from 'wallet-attached-storage-database/types'
 import ResourceRepository from 'wallet-attached-storage-database/resource-repository'
 import { collect } from 'streaming-iterables'
-import { readFilesFromTar } from 'wallet-attached-storage-database/space-tar'
 
 // create a database suitable for constructing a testable Server(database)
 async function createTestDatabase() {
@@ -42,7 +35,28 @@ await test('server.fetch get collection', async t => {
       representation: example1,
     })
   }
-  // get collection
+  // add html representation at collection name (for edge cases)
+  {
+    const collectionHtml = new Blob([`<!doctype html><h1>collection</h1>`], { type: 'text/html' })
+    const resources = new ResourceRepository(database)
+    await resources.putSpaceNamedResource({
+      space: spaceUuid,
+      name: collectionName,
+      representation: collectionHtml,
+    })
+  }
+  // get collection as text/html and expect the html representaiton
+  {
+    const request = new Request(`https://example.example/space/${spaceUuid}/${collectionName}`, {
+      headers: {
+        accept: `text/html`
+      }
+    })
+    const response = await server.fetch(request)
+    assert(response.ok, `response to get collection is ok`)
+    assert.equal(response.headers.get('content-type'), 'text/html')
+  }
+  // get collection with no explicit accept header, expect collection json representation
   {
     const request = new Request(`https://example.example/space/${spaceUuid}/${collectionName}`)
     const response = await server.fetch(request)
@@ -56,13 +70,6 @@ await test('server.fetch get collection', async t => {
       assert(includes(objectFromResponse.type, `Collection`),
         `collection.type includes "Collection"`)
     }
-    // check collection.items
-    {
-      assert('items' in objectFromResponse,
-        `collection.items is defined`)
-      assert.ok(Array.isArray(objectFromResponse.items),
-        `collection.items is an array`)
-    }
     // check collection.totalItems
     {
       assert('totalItems' in objectFromResponse,
@@ -72,10 +79,79 @@ await test('server.fetch get collection', async t => {
       assert.ok(objectFromResponse.items.length <= objectFromResponse.totalItems,
         `collection.toalItems must be at least the length of collection.items`)
     }
-  }
-})
+    // check collection.items
+    {
+      assert('items' in objectFromResponse,
+        `collection.items is defined`)
+      assert.ok(Array.isArray(objectFromResponse.items),
+        `collection.items is an array`)
+    }
+    // check collection.items includes example1 resource
+    {
+      const item = objectFromResponse.items[0]
+      assert.ok(item, `first collection.items[] is ok`)
+      assert.equal(item.name, resourceName)
+    }
 
-// TODO: test if collection resource has html representation
+  }
+
+  // let's test collection nesting
+  // Given:
+  //   a
+  //   a/b/c1
+  //   a/b/c2
+  // When:
+  //.* get a/
+  // Then
+  // * response collection only shows (collection) item a/b/
+  {
+    const resources = new ResourceRepository(database)
+    const abcSpaceUuid = crypto.randomUUID()
+
+    // add a space
+    {
+      await new wasdb.SpaceRepository(database).put({
+        uuid: abcSpaceUuid,
+      })
+    }
+
+    // add resources in the above structure (e.g. a/b/c1)
+    {
+      for (const name of [
+        `a`,
+        `a/b/c1`,
+        `a/b/c2`,
+      ]) {
+        await resources.putSpaceNamedResource({
+          space: abcSpaceUuid,
+          name: name,
+          representation: new Blob([JSON.stringify({ name })], { type: 'application/json' }),
+        })
+        // console.debug('put', `/space/${abcSpaceUuid}/${name}`)
+        // // i should be able to get it
+        // const got = await collect(resources.iterateSpaceNamedRepresentations({space:abcSpaceUuid, name}))
+        // console.debug('got', name, got)
+      }
+    }
+
+    // get collection a/ and expect to see a/b/
+    {
+      const requestUrl = `https://example.example/space/${abcSpaceUuid}/a/`
+      console.debug('requestUrl', requestUrl)
+      const response = await server.fetch(new Request(requestUrl))
+
+      // console.debug('response status', response.status)
+      // const responseText = await response.text()
+      // console.debug('response text', responseText)
+      assert(response.ok, `response to get collection is ok`)
+
+      const collection = response.json()
+      console.debug('collection', await collection)
+
+    }
+  }
+
+})
 
 /**
  * return true iff haystack contains needle.

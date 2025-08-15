@@ -44,57 +44,92 @@ export const GET = <P extends string>(options: ISpaceResourceHonoOptions<P>) => 
       data: options.data,
       space: async (c) => {
         const spaceId = options.space(c)
+        // console.debug('authorizing GET /space/{uuid}/{name}', {spaceId, name: c.req.param('name')})
         if (!spaceId) throw new Error(`unable to find space`, { cause: { spaceId } })
-        return spaces.getById(spaceId)
+        const space = await spaces.getById(spaceId)
+        // console.debug('got space by id', space)
+        return space;
       }
     }),
     async (c, next) => {
+      // console.debug('handling GET /space/{uuid}/{name}')
       const space = await options.space(c)
       if (!(space)) {
         return next()
       }
-      const name = c.req.param('name') ?? ''
-      console.debug('GET resource name', name)
+      const name = c.req.param('name')
 
-      function resourceTypeFromName(name: string) {
-        if (name.endsWith('/')) {
-          return 'collection' as const
+      const reqAccept = c.req.raw.headers.get('accept')
+
+      // effective 'accept' header value.
+      // if request accept header is undefined, default to `application/json`
+      const accept = reqAccept || 'application/json'
+
+      // if a collection and client wants json, materialize a collection json representation
+      if (nameIsCollection(name) && (!accept || accept === `application/json`)) {
+        // return a representation of the collection
+        // of items nested under this collection.
+        const items = await collect(resources.iterateSpaceCollectionItems({
+          space,
+          collection: name,
+        }))
+        const collection = {
+          type: [`Collection`],
+          items,
+          totalItems: items.length,
         }
-        return 'item' as const
+        return c.json(collection)
       }
 
-      switch (resourceTypeFromName(name)) {
-        case 'collection': {
-          // return a representation of the collection
-          // of items nested under this collection.
-          console.debug('resource type is collection. TODO get items')
-          return c.json({
-            type: [`Collection`],
-            items: [],
-            totalItems: 0,
-          })
+      function nameIsCollection(name: string) {
+        if (!name || name.endsWith('/')) {
+          return true
         }
-        case 'item': {
-          const representations = await collect(resources.iterateSpaceNamedRepresentations({
-            space,
-            name,
-          }))
-          if (representations.length === 0) {
-            return c.notFound()
-          }
-          if (representations.length > 1) {
-            console.warn(`found multiple representations for GET /space/${space}/${name}`, representations)
-          }
-          const [representation] = representations
-          return c.newResponse(await representation.blob.bytes(), {
-            headers: {
-              "Content-Type": representation.blob.type,
+        return false
+      }
+
+      const representations = await collect(resources.iterateSpaceNamedRepresentations({
+        space,
+        name,
+      }))
+
+      // we need to choose a representation of this resource to respond with.
+      let representation: typeof representations[0] | undefined = undefined
+
+      // do http content negotiation to find one with a content-type that satisfies request accept header.
+      {
+        if (representations.length === 1) {
+          representation = representations[0]
+        }
+        else if (representations.length > 1) {
+          // assign representation based on negotiating req accept and the supported media types
+          {
+            // use req accept header to choose res conetnt-type
+            // e.g. it might be text/html
+            const supportedMediaTypes = representations.map(r => r.blob.type)
+            const negotiatedType = negotiate(c.req.raw.headers, supportedMediaTypes)
+            const negotiatedRepresentation = representations.find(r => r.blob.type === negotiatedType)
+            if (negotiatedRepresentation) {
+              representation = negotiatedRepresentation
+            } else {
+              console.debug('unable to determine content-type via negotiation', {
+                reqAccept: c.req.header('Accept'),
+                supportedMediaTypes,
+              })
             }
-          })
+          }
         }
-        default:
-          throw new Error(`unable to determine resource type from name`, { cause: { name } });
       }
+
+      if (!representation) {
+        return c.notFound()
+      }
+
+      return c.newResponse(await representation.blob.bytes(), {
+        headers: {
+          "Content-Type": representation.blob.type,
+        }
+      })
     }
   )
   return handleGet
