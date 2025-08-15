@@ -62,7 +62,7 @@ await test(`index items in a space collection`, async t => {
   // get resources in space root collection /
   {
     const resources = new ResourceRepository(database)
-    const collection1ItemsGenerator = resources.iterateSpaceCollectionItems({
+    const collection1ItemsGenerator = resources.iterateSpaceCollectionDescendants({
       space: createdSpace.uuid,
       collection: '',
     })
@@ -72,7 +72,7 @@ await test(`index items in a space collection`, async t => {
   // get resources in collection1/
   {
     const resources = new ResourceRepository(database)
-    const collection1ItemsGenerator = resources.iterateSpaceCollectionItems({
+    const collection1ItemsGenerator = resources.iterateSpaceCollectionDescendants({
       space: createdSpace.uuid,
       collection: `collection1/`
     })
@@ -82,7 +82,7 @@ await test(`index items in a space collection`, async t => {
   // get resources in collection1/collection1-2/
   {
     const resources = new ResourceRepository(database)
-    const itemsGenerator = resources.iterateSpaceCollectionItems({
+    const itemsGenerator = resources.iterateSpaceCollectionDescendants({
       space: createdSpace.uuid,
       collection: `collection1/collection1-2/`
     })

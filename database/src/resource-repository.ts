@@ -63,7 +63,7 @@ export default class ResourceRepository implements IRepository<IResource> {
    * @param query.space - uuid of space
    * @param query.collection - name of collection in that space. must end in '/'.
    */
-  async * iterateSpaceCollectionItems(query: {
+  async * iterateSpaceCollectionDescendants(query: {
     /** space uuid */
     space: string,
     /** collection name within space. */

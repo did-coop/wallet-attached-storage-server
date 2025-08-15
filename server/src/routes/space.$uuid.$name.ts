@@ -69,7 +69,7 @@ export const GET = <P extends string>(options: ISpaceResourceHonoOptions<P>) => 
       if (nameIsCollection(name) && (!accept || accept === `application/json`)) {
         // return a representation of the collection
         // of items nested under this collection.
-        const items = await collect(resources.iterateSpaceCollectionItems({
+        const items = await collect(resources.iterateSpaceCollectionDescendants({
           space,
           collection: name,
         }))
