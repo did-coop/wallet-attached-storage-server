@@ -104,7 +104,8 @@ await test('server.fetch get collection', async t => {
   //.* get a/
   // Then
   // * response collection only shows (collection) item a/b/
-  {
+
+  await t.test(`get collection shows item for implicit child collection`, async t => {
     const resources = new ResourceRepository(database)
     const abcSpaceUuid = crypto.randomUUID()
 
@@ -137,20 +138,20 @@ await test('server.fetch get collection', async t => {
     // get collection a/ and expect to see a/b/
     {
       const requestUrl = `https://example.example/space/${abcSpaceUuid}/a/`
-      console.debug('requestUrl', requestUrl)
       const response = await server.fetch(new Request(requestUrl))
 
       // console.debug('response status', response.status)
       // const responseText = await response.text()
       // console.debug('response text', responseText)
-      assert(response.ok, `response to get collection is ok`)
+      assert.equal(response.status, 200)
 
-      const collection = response.json()
-      console.debug('collection', await collection)
-
+      const collection = await response.json()
+      assert.equal(collection.totalItems, 1)
+      const item = collection.items[0]
+      assert.deepEqual(item, { name: 'a/b/' })
     }
-  }
 
+  })
 })
 
 /**

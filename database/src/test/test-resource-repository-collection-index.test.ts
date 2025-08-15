@@ -89,4 +89,25 @@ await test(`index items in a space collection`, async t => {
     const items = await collect(itemsGenerator)
     assert.equal(items.length, 2)
   }
+
+  await t.test('iterateSpaceCollectionMembers root collection', async t => {
+    const resources = new ResourceRepository(database)
+    const items = await collect(resources.iterateSpaceCollectionMembers({
+      space: createdSpace.uuid,
+    }))
+    assert.ok(items.find(i => i.name === 'collection1/'))
+    assert.ok(items.find(i => i.name === 'collection2/'))
+    assert.ok(items.find(i => i.name === 'resource4'))
+  })
+
+  await t.test('iterateSpaceCollectionMembers collection1/', async t => {
+    const resources = new ResourceRepository(database)
+    const items = await collect(resources.iterateSpaceCollectionMembers({
+      space: createdSpace.uuid,
+      collection: 'collection1/',
+    }))
+    assert.ok(items.find(i => i.name === 'collection1/collection1-2/'))
+    assert.ok(items.find(i => i.name === 'collection1/resource1'))
+    assert.ok(items.find(i => i.name === 'collection1/resource2'))
+  })
 })

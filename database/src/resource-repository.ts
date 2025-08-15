@@ -99,6 +99,95 @@ export default class ResourceRepository implements IRepository<IResource> {
     );
   }
 
+  /**
+   * get direct members of a collection in a space.
+   * There are some not-so-obvious parts of this.
+   * 
+   * Given a space has only a/b/c,
+   * When we iterateSpaceCollectionMembers w/ collection a/
+   * Then the result set includes a/b/
+   * i.e. a/b/ implicitly exists because a/b/c does.
+   * 
+   * Given a space with a/b/, a/b/c
+   * When we iterateSpaceCollectionMembers w/ collection a/
+   * Then the result set is a/b/
+   * i.e. only iterate direct children, not deep descendants like a/b/c
+
+   * @param query 
+   */
+  async * iterateSpaceCollectionMembers(query: {
+    /** space uuid */
+    space: string,
+    /** collection name within space */
+    collection?: string,
+  }) {
+    const collection = query.collection ?? ''
+    if (collection && !collection.endsWith('/')) {
+      throw new Error(`collection name MUST end with /`, { cause: { collection } })
+    }
+    const resultOfSelectResources = await this.#database
+      .with('all_members', (qb) => {
+        return qb
+          .selectFrom('spaceNamedResource')
+          .select([
+            sql<string>`
+          CASE 
+            WHEN SUBSTR(name, ${collection.length + 1}) LIKE '%/%' 
+            AND name NOT LIKE '%/' THEN
+              ${collection} || SUBSTR(name, ${collection.length + 1}, INSTR(SUBSTR(name, ${collection.length + 1}), '/'))
+            ELSE
+              name
+          END
+        `.as('name'),
+            sql<string | null>`
+          CASE 
+            WHEN SUBSTR(name, ${collection.length + 1}) LIKE '%/%' 
+            AND name NOT LIKE '%/' THEN
+              NULL
+            ELSE
+              resourceId
+          END
+        `.as('resourceId'),
+            sql<boolean>`
+          CASE 
+            WHEN SUBSTR(name, ${collection.length + 1}) LIKE '%/%' 
+            AND name NOT LIKE '%/' THEN
+              TRUE
+            ELSE
+              name LIKE '%/'
+          END
+        `.as('isCollection'),
+            'spaceId'
+          ])
+          .where('spaceId', '=', query.space)
+          .where('name', 'is not', null)
+          .where('name', 'like', collection + '%')
+          .$if(!!collection, (qb) => qb.where('name', '!=', collection));
+      })
+      .selectFrom('all_members')
+      .leftJoin('resourceRepresentation', 'all_members.resourceId', 'resourceRepresentation.resourceId')
+      .leftJoin('blob', 'resourceRepresentation.representationId', 'blob.uuid')
+      .select([
+        'all_members.name',
+        'all_members.spaceId as space',
+        'all_members.resourceId',
+        'all_members.isCollection',
+        sql<string | null>`group_concat(distinct blob.type)`.as('mediaTypesStr')
+      ])
+      .groupBy(['all_members.name', 'all_members.spaceId'])
+      .orderBy('all_members.name')
+      .stream();
+    yield* map(
+      x => ({
+        name: x.name,
+        representation: x.mediaTypesStr?.split(',').map(mediaType => ({
+          mediaType,
+        }))
+      }),
+      resultOfSelectResources
+    );
+  }
+
   async create(input: Insertable<IResource> & { representation?: Blob }) {
     try {
       await this.#database.insertInto('resource')
