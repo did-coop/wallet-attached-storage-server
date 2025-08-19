@@ -64,9 +64,17 @@ export const GET = <P extends string>(options: ISpaceResourceHonoOptions<P>) => 
       // effective 'accept' header value.
       // if request accept header is undefined, default to `application/json`
       const accept = reqAccept || 'application/json'
+      const acceptsJson = (options: { accept: string }) => {
+        switch (options.accept) {
+          case 'application/json':
+          case '*/*':
+            return true
+        }
+        return false
+      }
 
       // if a collection and client wants json, materialize a collection json representation
-      if (nameIsCollection(name) && (!accept || accept === `application/json`)) {
+      if (nameIsCollection(name) && acceptsJson({ accept })) {
         // return a representation of the collection
         // of items nested under this collection.
         const items = await collect(resources.iterateSpaceCollectionMembers({

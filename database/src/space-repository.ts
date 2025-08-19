@@ -1,4 +1,4 @@
-import { NoResultError, PostgresIntrospector, sql, type Insertable, type QueryCreator, type Updateable } from "kysely"
+import { NoResultError, PostgresIntrospector, sql, SqliteIntrospector, type Insertable, type QueryCreator, type Updateable } from "kysely"
 import type { Database, DatabaseTables, IRepository, ISpace } from "./types"
 
 export class SpaceNotFound extends Error { }
@@ -35,7 +35,7 @@ export default class SpaceRepository implements IRepository<ISpace> {
           'link.href as link',
         ])
         .where(`space.uuid`, '=', id)
-        .executeTakeFirstOrThrow()      
+        .executeTakeFirstOrThrow()
     }
     try {
       const isPostgresql = this.#database.introspection instanceof PostgresIntrospector
@@ -125,6 +125,22 @@ export default class SpaceRepository implements IRepository<ISpace> {
     }
   }
   async toArray() {
+    // if database is postgresql, use appropriate query
+    if (this.#database.introspection instanceof PostgresIntrospector) {
+      const spaces = await this.#database.selectFrom('space')
+        .leftJoin('link', (join) =>
+          join.on('link.anchor', '=', sql`space.uuid::text`)
+        )
+        .select([
+          'space.uuid',
+          'space.name',
+          'space.controller',
+          'link.href as link',
+        ])
+        .execute()
+      return spaces
+    }
+    // default to sqlite-friendly query
     const spaces = await this.#database.selectFrom('space')
       .leftJoin('link', 'link.anchor', 'space.uuid')
       .select([

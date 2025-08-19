@@ -17,11 +17,15 @@ import { PostSpaceRequestBodyShape } from '../shapes/PostSpaceRequestBody.ts'
  */
 export const GET = (repo: SpaceRepository) => async (c: Context, next: Next) => {
   const spacesArray = await repo.toArray()
+  const items = spacesArray.map(space => ({
+    ...space,
+    url: new URL(`/space/${space.uuid}`, c.req.url).toString(),
+  }))
   return c.json({
     name: 'Spaces',
-    items: spacesArray,
-    totalItems: spacesArray.length,
     type: ['Collection'],
+    totalItems: items.length,
+    items,
   })
 }
 

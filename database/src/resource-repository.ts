@@ -1,10 +1,10 @@
-import { sql, type Insertable, type QueryCreator } from "kysely"
-import type { DatabaseTables, IRepository, IResource } from "./types"
+import { Kysely, PostgresIntrospector, sql, SqliteIntrospector, type Insertable, type QueryCreator } from "kysely"
+import type { Database, DatabaseTables, IRepository, IResource } from "./types"
 import { map } from "streaming-iterables"
 
 export default class ResourceRepository implements IRepository<IResource> {
-  #database: QueryCreator<DatabaseTables>
-  constructor(database: QueryCreator<DatabaseTables>) {
+  #database: QueryCreator<DatabaseTables> & { introspection?: Database['introspection'] }
+  constructor(database: QueryCreator<DatabaseTables> & { introspection?: Database['introspection'] }) {
     this.#database = database
   }
   async getById(id: string) {
@@ -121,71 +121,29 @@ export default class ResourceRepository implements IRepository<IResource> {
     /** collection name within space */
     collection?: string,
   }) {
-    const collection = query.collection ?? ''
-    if (collection && !collection.endsWith('/')) {
-      throw new Error(`collection name MUST end with /`, { cause: { collection } })
+    const introspectionName = this.#database.introspection?.constructor.name
+    switch (introspectionName) {
+      case 'PostgresIntrospector':
+        yield* this.iterateSpaceCollectionMembersPostgresql(query)
+        break;
+      default:
+        yield* this.iterateSpaceCollectionMembersSqlite3(query)
+        break;
     }
-    const resultOfSelectResources = await this.#database
-      .with('all_members', (qb) => {
-        return qb
-          .selectFrom('spaceNamedResource')
-          .select([
-            sql<string>`
-          CASE 
-            WHEN SUBSTR(name, ${collection.length + 1}) LIKE '%/%' 
-            AND name NOT LIKE '%/' THEN
-              ${collection} || SUBSTR(name, ${collection.length + 1}, INSTR(SUBSTR(name, ${collection.length + 1}), '/'))
-            ELSE
-              name
-          END
-        `.as('name'),
-            sql<string | null>`
-          CASE 
-            WHEN SUBSTR(name, ${collection.length + 1}) LIKE '%/%' 
-            AND name NOT LIKE '%/' THEN
-              NULL
-            ELSE
-              resourceId
-          END
-        `.as('resourceId'),
-            sql<boolean>`
-          CASE 
-            WHEN SUBSTR(name, ${collection.length + 1}) LIKE '%/%' 
-            AND name NOT LIKE '%/' THEN
-              TRUE
-            ELSE
-              name LIKE '%/'
-          END
-        `.as('isCollection'),
-            'spaceId'
-          ])
-          .where('spaceId', '=', query.space)
-          .where('name', 'is not', null)
-          .where('name', 'like', collection + '%')
-          .$if(!!collection, (qb) => qb.where('name', '!=', collection));
-      })
-      .selectFrom('all_members')
-      .leftJoin('resourceRepresentation', 'all_members.resourceId', 'resourceRepresentation.resourceId')
-      .leftJoin('blob', 'resourceRepresentation.representationId', 'blob.uuid')
-      .select([
-        'all_members.name',
-        'all_members.spaceId as space',
-        'all_members.resourceId',
-        'all_members.isCollection',
-        sql<string | null>`group_concat(distinct blob.type)`.as('mediaTypesStr')
-      ])
-      .groupBy(['all_members.name', 'all_members.spaceId'])
-      .orderBy('all_members.name')
-      .stream();
-    yield* map(
-      x => ({
-        name: x.name,
-        representation: x.mediaTypesStr?.split(',').map(mediaType => ({
-          mediaType,
-        }))
-      }),
-      resultOfSelectResources
-    );
+  }
+
+  // iterateSpaceCollectionMembers for postgresql
+  async * iterateSpaceCollectionMembersPostgresql(
+    query: Parameters<ResourceRepository['iterateSpaceCollectionMembers']>[0]
+  ) {
+    yield* iterateSpaceCollectionMembersPostgresql(this.#database, query)
+  }
+
+  // iterateSpaceCollectionMembers for sqlite3
+  async * iterateSpaceCollectionMembersSqlite3(
+    query: Parameters<ResourceRepository['iterateSpaceCollectionMembers']>[0]
+  ) {
+    yield* iterateSpaceCollectionMembersSqlite3(this.#database, query)
   }
 
   async create(input: Insertable<IResource> & { representation?: Blob }) {
@@ -286,4 +244,157 @@ function parseUrnUuidUriToSpaceName(uri: `urn:uuid:${string}${string}`) {
     }
   }
   throw new Error(`Failed to parse URN UUID URI: ${uri}`)
+}
+
+/**
+ * ResourceRepository#iterateSpaceCollectionMembers but can assume database is sqlite
+ * @param query 
+ */
+async function* iterateSpaceCollectionMembersSqlite3(database: QueryCreator<DatabaseTables>, query: {
+  /** space uuid */
+  space: string,
+  /** collection name within space */
+  collection?: string,
+}) {
+  const collection = query.collection ?? ''
+  if (collection && !collection.endsWith('/')) {
+    throw new Error(`collection name MUST end with /`, { cause: { collection } })
+  }
+  const resultOfSelectResources = await database
+    .with('all_members', (qb) => {
+      return qb
+        .selectFrom('spaceNamedResource')
+        .select([
+          sql<string>`
+          CASE 
+            WHEN SUBSTR(name, ${collection.length + 1}) LIKE '%/%' 
+            AND name NOT LIKE '%/' THEN
+              ${collection} || SUBSTR(name, ${collection.length + 1}, INSTR(SUBSTR(name, ${collection.length + 1}), '/'))
+            ELSE
+              name
+          END
+        `.as('name'),
+          sql<string | null>`
+          CASE 
+            WHEN SUBSTR(name, ${collection.length + 1}) LIKE '%/%' 
+            AND name NOT LIKE '%/' THEN
+              NULL
+            ELSE
+              resourceId
+          END
+        `.as('resourceId'),
+          sql<boolean>`
+          CASE 
+            WHEN SUBSTR(name, ${collection.length + 1}) LIKE '%/%' 
+            AND name NOT LIKE '%/' THEN
+              TRUE
+            ELSE
+              name LIKE '%/'
+          END
+        `.as('isCollection'),
+          'spaceId'
+        ])
+        .where('spaceId', '=', query.space)
+        .where('name', 'is not', null)
+        .where('name', 'like', collection + '%')
+        .$if(!!collection, (qb) => qb.where('name', '!=', collection));
+    })
+    .selectFrom('all_members')
+    .leftJoin('resourceRepresentation', 'all_members.resourceId', 'resourceRepresentation.resourceId')
+    .leftJoin('blob', 'resourceRepresentation.representationId', 'blob.uuid')
+    .select([
+      'all_members.name',
+      'all_members.spaceId as space',
+      'all_members.resourceId',
+      'all_members.isCollection',
+      sql<string | null>`group_concat(distinct blob.type)`.as('mediaTypesStr')
+    ])
+    .groupBy(['all_members.name', 'all_members.spaceId'])
+    .orderBy('all_members.name')
+    .stream();
+  yield* map(
+    x => ({
+      name: x.name,
+      representation: x.mediaTypesStr?.split(',').map(mediaType => ({
+        mediaType,
+      }))
+    }),
+    resultOfSelectResources
+  );
+}
+
+/**
+ * ResourceRepository#iterateSpaceCollectionMembers but can assume database is postgresql
+ * @param query 
+ */
+async function* iterateSpaceCollectionMembersPostgresql(database: QueryCreator<DatabaseTables>, query: {
+  /** space uuid */
+  space: string,
+  /** collection name within space */
+  collection?: string,
+}) {
+  const collection = query.collection ?? '';
+  if (collection && !collection.endsWith('/')) {
+    throw new Error(`collection name MUST end with /`, { cause: { collection } });
+  }
+
+  const resultOfSelectResources = await database
+    .with('all_members', (qb) => {
+      return qb
+        .selectFrom('spaceNamedResource')
+        .select([
+          sql<string>`
+            CASE 
+              WHEN position('/' in substr("spaceNamedResource"."name", ${collection.length + 1})) > 0
+              AND "spaceNamedResource"."name" NOT LIKE '%/'
+              THEN ${collection} || split_part(substr("spaceNamedResource"."name", ${collection.length + 1}), '/', 1) || '/'
+              ELSE "spaceNamedResource"."name"
+            END
+          `.as('name'),
+          sql<string | null>`
+            CASE 
+              WHEN position('/' in substr("spaceNamedResource"."name", ${collection.length + 1})) > 0
+              AND "spaceNamedResource"."name" NOT LIKE '%/'
+              THEN NULL
+              ELSE "spaceNamedResource"."resourceId"
+            END
+          `.as('resourceId'),
+          sql<boolean>`
+            CASE 
+              WHEN position('/' in substr("spaceNamedResource"."name", ${collection.length + 1})) > 0
+              AND "spaceNamedResource"."name" NOT LIKE '%/'
+              THEN TRUE
+              ELSE "spaceNamedResource"."name" LIKE '%/'
+            END
+          `.as('isCollection'),
+          'spaceNamedResource.spaceId'
+        ])
+        .where('spaceNamedResource.spaceId', '=', query.space)
+        .where('spaceNamedResource.name', 'is not', null)
+        .where('spaceNamedResource.name', 'like', collection + '%')
+        .$if(!!collection, (qb) => qb.where('spaceNamedResource.name', '!=', collection));
+    })
+    .selectFrom('all_members')
+    .leftJoin('resourceRepresentation', 'all_members.resourceId', 'resourceRepresentation.resourceId')
+    .leftJoin('blob', 'resourceRepresentation.representationId', 'blob.uuid')
+    .select([
+      'all_members.name',
+      'all_members.spaceId as space',
+      'all_members.resourceId',
+      'all_members.isCollection',
+      sql<string[]>`array_agg(distinct "blob"."type") filter (where "blob"."type" is not null)`.as('mediaTypes')
+    ])
+    .groupBy(['all_members.name', 'all_members.spaceId', 'all_members.resourceId', 'all_members.isCollection'])
+    .orderBy('all_members.name')
+    .stream();
+
+  yield* map(
+    x => ({
+      name: x.name,
+      representation: (x.mediaTypes || []).map(mediaType => ({
+        mediaType,
+      }))
+    }),
+    resultOfSelectResources
+  );
 }
