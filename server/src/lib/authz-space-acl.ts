@@ -35,6 +35,8 @@ interface ISpaceResourceHonoOptions<P extends string> {
   data: Database,
 }
 
+class SpaceLinkParseError extends Error { }
+
 export async function authorizeRequestWithSpaceAcl<P extends string>(
   request: Pick<Request, 'url' | 'method'>,
   options: ISpaceResourceHonoOptions<P>
@@ -54,12 +56,19 @@ export async function authorizeRequestWithSpaceAcl<P extends string>(
     | { space: string, name: string }
     | undefined
   {
-    // parse the link to see if we can understand it
-    const parsedLink = parseSpaceLink(space.link)
+    let parsedLink: { space: string, name: string } | undefined
 
+    try {
+      // parse the link to see if we can understand it
+      parsedLink = parseSpaceLink(space.link)
+    } catch (error) {
+      console.warn(`error parsing space.link value "${space.link}"`, error)
+      return false // return false because request is not authorized
+    }
+    
     if (!parsedLink) {
-      console.warn('unable to parse space link', space.link)
-      return false
+      console.warn('unable to parse space link from value', space.link)
+      return false // return false because request is not authorized
     }
 
     // We parsed the space link to a space resource.
