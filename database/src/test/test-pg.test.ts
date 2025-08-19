@@ -6,9 +6,12 @@ import ResourceRepository from "../resource-repository.ts"
 import SpaceRepository from "../space-repository.ts"
 import { collect } from "streaming-iterables"
 
-const TESTING_POSTGRESQL_URL = process.env.TESTING_POSTGRESQL_URL ?? `postgresql://`
+// an example value that might make sense when developing (warning: doesnt specify a database name)
+// TESTING_POSTGRESQL_URL='postgresql://localhost:5432'
+const TESTING_POSTGRESQL_URL = process.env.TESTING_POSTGRESQL_URL;
 
-await test('querying WAS database from postgresql URL', async t => {
+await test('querying WAS database from postgresql URL', { skip: !TESTING_POSTGRESQL_URL }, async t => {
+  assert.ok(TESTING_POSTGRESQL_URL, `TESTING_POSTGRESQL_URL must be set`)
   const database = createKyselyFromDatabaseUrl(TESTING_POSTGRESQL_URL)
   try {
     await initializeDatabaseSchema(database)
