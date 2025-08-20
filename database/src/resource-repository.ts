@@ -37,23 +37,27 @@ export default class ResourceRepository implements IRepository<IResource> {
     const resultOfSelectRepresentations = await this.#database.selectFrom('resourceRepresentation')
       .innerJoin('spaceNamedResource', 'spaceNamedResource.resourceId', 'resourceRepresentation.resourceId')
       .innerJoin('blob', 'blob.uuid', 'resourceRepresentation.representationId')
+      .leftJoin('link', 'link.anchor', 'resourceRepresentation.resourceId')
       .select([
         'blob.bytes',
         'blob.type',
         'resourceRepresentation.createdAt',
         'spaceNamedResource.name',
         'spaceNamedResource.spaceId as space',
+        'link.uuid as linkId',
+        'link.anchor as linkAnchor',
       ])
       .where('spaceNamedResource.spaceId', '=', query.space)
       .$if(typeof query.name === 'string', qb => qb.where('spaceNamedResource.name', '=', query.name))
       .orderBy('resourceRepresentation.createdAt', 'desc')
       .execute()
-    yield* map(
-      x => ({
-        blob: new File([x.bytes], x.name, { type: x.type }),
+    yield* map(x => {
+      const fileName = `${x.linkAnchor || x.linkId || x.name || x.space}-${x.type}.json`.replace(/[\/\\:*?"<>|]/g, '_')
+      return {
+        blob: new File([x.bytes], fileName, { type: x.type }),
         createdAt: x.createdAt,
-      }),
-      resultOfSelectRepresentations)
+      }
+    }, resultOfSelectRepresentations)
   }
   async create(input: Insertable<IResource> & { representation?: Blob }) {
     try {

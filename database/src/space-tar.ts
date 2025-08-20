@@ -18,9 +18,8 @@ export async function exportSpaceTar(
 
   // create entry files for each resource in space
   for await (const rep of repsInSpace) {
-    const searchParams = rep.blob.type ? new URLSearchParams({ ct: rep.blob.type.toLowerCase() }) : undefined
-    const fileName = `${rep.blob.name}${searchParams ? `?${searchParams}` : ''}`
-    const tarEntryName = `${spaceUuid}/${encodeURIComponent(fileName)}`
+    const tarEntryName = `${spaceUuid}/${rep.blob.name}`
+
     pack.entry(
       { name: tarEntryName },
       // @todo dont load whole blob into memory
