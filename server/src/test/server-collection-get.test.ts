@@ -148,11 +148,11 @@ await test('server.fetch get collection', async t => {
 })
 
 /**
- * return true iff haystack contains needle.
+ * Return true iff haystack contains needle.
  * Haystack can either be a single value or an array of values.
- * @param haystack 
- * @param needle 
- * @returns 
+ * @param haystack The value or array of values to search within.
+ * @param needle The value to search for in the haystack.
+ * @returns True if the needle is found in the haystack; otherwise, false.
  */
 function includes<V>(haystack: V | V[], needle: V): boolean {
   if (Array.isArray(haystack)) {
