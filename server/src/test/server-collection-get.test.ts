@@ -45,7 +45,7 @@ await test('server.fetch get collection', async t => {
       representation: collectionHtml,
     })
   }
-  // get collection as text/html and expect the html representaiton
+  // get collection as text/html and expect the html representation
   {
     const request = new Request(`https://example.example/space/${spaceUuid}/${collectionName}`, {
       headers: {
