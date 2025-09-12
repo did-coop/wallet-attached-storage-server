@@ -101,7 +101,7 @@ await test('server.fetch get collection', async t => {
   //   a/b/c1
   //   a/b/c2
   // When:
-  //.* get a/
+  // get a/
   // Then
   // * response collection only shows (collection) item a/b/
 
