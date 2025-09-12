@@ -51,29 +51,54 @@ export default class ResourceRepository implements IRepository<IResource> {
       .execute()
     yield* map(
       x => ({
-        blob: new File([x.bytes], x.name, { type: x.type }),
+        blob: new File([x.bytes as any], x.name, { type: x.type }),
         createdAt: x.createdAt,
       }),
       resultOfSelectRepresentations)
   }
 
+  async * iterateSpaceCollectionDescendants(
+    query: {
+      /** space uuid */
+      space: string,
+      /** collection name within space. */
+      collection?: string,
+    },
+    database: QueryCreator<DatabaseTables> = this.#database
+  ) {
+    const introspectionName = this.#database.introspection?.constructor.name
+    switch (introspectionName) {
+      case 'PostgresIntrospector':
+        yield* this.iterateSpaceCollectionDescendantsPostgresql(query, database)
+        break;
+      default:
+        yield* this.iterateSpaceCollectionDescendantsSqlite(query, database)
+        break;
+    }
+  }
+
+
   /**
-   * iterate items that are descendants of a collection in the space.
+   * iterate items that are descendants of a collection in the space,
+   * assuming that database is a sqlite database.
    * @param query
    * @param query.space - uuid of space
    * @param query.collection - name of collection in that space. must end in '/'.
    */
-  async * iterateSpaceCollectionDescendants(query: {
-    /** space uuid */
-    space: string,
-    /** collection name within space. */
-    collection?: string,
-  }) {
+  async * iterateSpaceCollectionDescendantsSqlite(
+    query: {
+      /** space uuid */
+      space: string,
+      /** collection name within space. */
+      collection?: string,
+    },
+    database: QueryCreator<DatabaseTables> = this.#database
+  ) {
     const collection = query.collection ?? ''
     if (collection && !collection.endsWith('/')) {
       throw new Error(`collection name MUST end with /`, { cause: { collection } })
     }
-    const resultOfSelectResources = await this.#database.selectFrom('spaceNamedResource')
+    const resultOfSelectResources = await database.selectFrom('spaceNamedResource')
       .innerJoin('resourceRepresentation', 'spaceNamedResource.resourceId', 'resourceRepresentation.resourceId')
       .innerJoin('blob', 'resourceRepresentation.representationId', 'blob.uuid')
       .select([
@@ -87,6 +112,51 @@ export default class ResourceRepository implements IRepository<IResource> {
       // exclude collection itself
       .where('spaceNamedResource.name', '!=', collection)
       .groupBy(['spaceNamedResource.name'])
+      .stream()
+    yield* map(
+      x => ({
+        name: x.name,
+        representation: x.mediaTypesStr.split(',').map(mediaType => ({
+          mediaType,
+        }))
+      }),
+      resultOfSelectResources
+    );
+  }
+
+  /**
+   * iterate items that are descendants of a collection in the space.
+   * @param query
+   * @param query.space - uuid of space
+   * @param query.collection - name of collection in that space. must end in '/'.
+   */
+  async * iterateSpaceCollectionDescendantsPostgresql(
+    query: {
+      /** space uuid */
+      space: string,
+      /** collection name within space. */
+      collection?: string,
+    },
+    database: QueryCreator<DatabaseTables> = this.#database
+  ) {
+    const collection = query.collection ?? ''
+    if (collection && !collection.endsWith('/')) {
+      throw new Error(`collection name MUST end with /`, { cause: { collection } })
+    }
+    const resultOfSelectResources = await database.selectFrom('spaceNamedResource')
+      .innerJoin('resourceRepresentation', 'spaceNamedResource.resourceId', 'resourceRepresentation.resourceId')
+      .innerJoin('blob', 'resourceRepresentation.representationId', 'blob.uuid')
+      .select([
+        'spaceNamedResource.name',
+        'spaceNamedResource.spaceId as space',
+        // Get all distinct media types as comma-separated string
+        sql<string>`string_agg(distinct blob.type, ',')`.as('mediaTypesStr')
+      ])
+      .where('spaceNamedResource.spaceId', '=', query.space)
+      .where('spaceNamedResource.name', 'like', `${collection}%`)
+      // exclude collection itself
+      .where('spaceNamedResource.name', '!=', collection)
+      .groupBy(['spaceNamedResource.name', 'spaceNamedResource.spaceId'])
       .stream()
     yield* map(
       x => ({
@@ -305,7 +375,6 @@ async function* iterateSpaceCollectionMembersSqlite3(database: QueryCreator<Data
     .select([
       'all_members.name',
       'all_members.spaceId as space',
-      'all_members.resourceId',
       'all_members.isCollection',
       sql<string | null>`group_concat(distinct blob.type)`.as('mediaTypesStr')
     ])
@@ -380,11 +449,10 @@ async function* iterateSpaceCollectionMembersPostgresql(database: QueryCreator<D
     .select([
       'all_members.name',
       'all_members.spaceId as space',
-      'all_members.resourceId',
       'all_members.isCollection',
       sql<string[]>`array_agg(distinct "blob"."type") filter (where "blob"."type" is not null)`.as('mediaTypes')
     ])
-    .groupBy(['all_members.name', 'all_members.spaceId', 'all_members.resourceId', 'all_members.isCollection'])
+    .groupBy(['all_members.name', 'all_members.spaceId', 'all_members.isCollection'])
     .orderBy('all_members.name')
     .stream();
 
