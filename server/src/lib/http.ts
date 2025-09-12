@@ -11,7 +11,7 @@ export function toNodeHeaders(headers: Headers) {
   return nodeHeaders
 }
 
-export function negotiate(headers: Headers, supportedMediaTypes: string[]) {
+export function negotiate(headers: Headers, supportedMediaTypes?: string[]) {
   const negotiator = new Negotiator({ headers: toNodeHeaders(headers) })
   return negotiator.mediaType(supportedMediaTypes)
 }

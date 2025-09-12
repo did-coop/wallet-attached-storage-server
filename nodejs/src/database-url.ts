@@ -1,7 +1,7 @@
 import { Kysely, PostgresDialect, SqliteDialect } from 'kysely'
 import { Pool } from 'pg'
 import BetterSqlite3Database from 'better-sqlite3'
-import * as Cursor from 'pg-cursor'
+import Cursor from 'pg-cursor'
 import {ConnectionString} from 'connection-string';
 
 export function createKyselyFromDatabaseUrl(databaseUrl: string): Kysely<any> {

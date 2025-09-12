@@ -3,6 +3,9 @@
   "name": "wallet-attached-storage-server-nodejs",
   "version": "0.4.0",
   "main": "index.js",
+  "exports": {
+    "./database-url": "./src/database-url.ts"
+  },
   "scripts": {
     "dev": "dotenvx run -f .env.dev -- node --no-warnings --watch ./scripts/start.ts",
     "start": "node ./scripts/start.ts",

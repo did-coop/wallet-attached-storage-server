@@ -109,6 +109,7 @@ await describe('wallet-attached-storage-server for web publishing', async t => {
       const responseToPutHomepage = await server.fetch(new Request(requestUrl, {
         method: requestMethod,
         headers: {
+          accept: 'text/html',
           authorization: await createHttpSignatureAuthorization({
             signer: keyForAlice,
             url: requestUrl,
