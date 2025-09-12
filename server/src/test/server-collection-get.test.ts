@@ -77,7 +77,7 @@ await test('server.fetch get collection', async t => {
       assert.equal(typeof objectFromResponse.totalItems, 'number',
         `objectFromResponse.totalItems is a number`)
       assert.ok(objectFromResponse.items.length <= objectFromResponse.totalItems,
-        `collection.toalItems must be at least the length of collection.items`)
+        `collection.totalItems must be at least the length of collection.items`)
     }
     // check collection.items
     {
