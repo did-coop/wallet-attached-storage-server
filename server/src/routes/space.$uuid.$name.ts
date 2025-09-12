@@ -44,15 +44,12 @@ export const GET = <P extends string>(options: ISpaceResourceHonoOptions<P>) => 
       data: options.data,
       space: async (c) => {
         const spaceId = options.space(c)
-        // console.debug('authorizing GET /space/{uuid}/{name}', {spaceId, name: c.req.param('name')})
         if (!spaceId) throw new Error(`unable to find space`, { cause: { spaceId } })
         const space = await spaces.getById(spaceId)
-        // console.debug('got space by id', space)
         return space;
       }
     }),
     async (c, next) => {
-      // console.debug('handling GET /space/{uuid}/{name}')
       const space = await options.space(c)
       if (!(space)) {
         return next()

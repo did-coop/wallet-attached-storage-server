@@ -128,10 +128,6 @@ await test('server.fetch get collection', async t => {
           name: name,
           representation: new Blob([JSON.stringify({ name })], { type: 'application/json' }),
         })
-        // console.debug('put', `/space/${abcSpaceUuid}/${name}`)
-        // // i should be able to get it
-        // const got = await collect(resources.iterateSpaceNamedRepresentations({space:abcSpaceUuid, name}))
-        // console.debug('got', name, got)
       }
     }
 
@@ -140,9 +136,6 @@ await test('server.fetch get collection', async t => {
       const requestUrl = `https://example.example/space/${abcSpaceUuid}/a/`
       const response = await server.fetch(new Request(requestUrl))
 
-      // console.debug('response status', response.status)
-      // const responseText = await response.text()
-      // console.debug('response text', responseText)
       assert.equal(response.status, 200)
 
       const collection = await response.json()
