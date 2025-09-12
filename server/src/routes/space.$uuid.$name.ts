@@ -109,7 +109,7 @@ export const GET = <P extends string>(options: ISpaceResourceHonoOptions<P>) => 
         else if (representations.length > 1) {
           // assign representation based on negotiating req accept and the supported media types
           {
-            // use req accept header to choose res conetnt-type
+            // use req accept header to choose res content-type
             // e.g. it might be text/html
             const supportedMediaTypes = representations.map(r => r.blob.type)
             const negotiatedType = negotiate(c.req.raw.headers, supportedMediaTypes)
